@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'package:flutter/services.dart';
 
 class BleReceive {
   String lr = "";
@@ -24,12 +25,18 @@ class BleReceive {
   }
 }
 
-enum BleEvent {
-  exitFunc,
-  nextPageForEvenAI,
-  upHeader,
-  downHeader,
-  glassesConnectSuccess, // 17、Bluetooth binding successful
-  evenaiStart, // 23 Notify the phone to start Even AI
-  evenaiRecordOver, // 24 Even AI recording ends
+class BLEManager {
+  static final BLEManager _instance = BLEManager._internal();
+  static BLEManager get instance => _instance;
+
+  BLEManager._internal();
+
+  static void sendNotificationToGoggles(Map<String, dynamic> notification) {
+    final String message = '${notification['title']}: ${notification['body']}';
+    instance.sendData(message);
+  }
+
+  void sendData(String message) {
+    // Your BLE sending implementation here
+  }
 }

@@ -7,65 +7,86 @@
 
 import UIKit
 import Flutter
+import UserNotifications
+import EventKit
 
 @main
-@objc class AppDelegate: FlutterAppDelegate {
-
+@objc class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
     private var blueInstance = BluetoothManager.shared
+    private let eventStore = EKEventStore()
+    private var notificationChannel: FlutterMethodChannel?
 
     override func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
     ) -> Bool {
- 
-        GeneratedPluginRegistrant.register(with: self)
-        let controller = window?.rootViewController as! FlutterViewController
-        let messenger : FlutterBinaryMessenger = window?.rootViewController as! FlutterBinaryMessenger
-        let channel = FlutterMethodChannel(name: "method.bluetooth", binaryMessenger: controller.binaryMessenger)
-        
-        blueInstance = BluetoothManager(channel: channel)
+        let controller: FlutterViewController = window?.rootViewController as! FlutterViewController
+        notificationChannel = FlutterMethodChannel(name: "even_notifications", binaryMessenger: controller.binaryMessenger)
 
-        // Set method call handler for Flutter channel
-        channel.setMethodCallHandler { [weak self] (call, result) in
-            print("AppDelegate----call----\(call)----\(call.method)---------")
-            guard let self = self else { return }
+        // Request notification permissions
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            // Handle permission granted or error
+        }
+        UNUserNotificationCenter.current().delegate = self
 
-            switch call.method {
-            case "startScan":
-                self.blueInstance.startScan(result: result)
-            case "stopScan":
-                self.blueInstance.stopScan(result: result)
-            case "connectToGlasses":
-                if let args = call.arguments as? [String: Any], let deviceName = args["deviceName"] as? String {
-                    self.blueInstance.connectToDevice(deviceName: deviceName, result: result)
-                } else {
-                    result(FlutterError(code: "InvalidArguments", message: "Invalid arguments", details: nil))
-                }
-            case "disconnectFromGlasses":
-                self.blueInstance.disconnectFromGlasses(result: result)
-            case "send":
-                let params = call.arguments as? [String : Any]
-                self.blueInstance.sendData(params: params!)
-                result(nil)
-            case "startEvenAI":
-                // todo dynamic language
-                SpeechStreamRecognizer.shared.startRecognition(identifier: "EN")
-                result(nil)
-            case "stopEvenAI":
-                SpeechStreamRecognizer.shared.stopRecognition()
-                result(nil)
-            default:
-                result(FlutterMethodNotImplemented)
+        // Request calendar access
+        eventStore.requestAccess(to: .event) { (granted, error) in
+            if granted {
+                // Optionally fetch events here or on demand
             }
         }
-     
-        let scheduleEvent = FlutterEventChannel(name: "eventBleReceive", binaryMessenger: messenger)
-        scheduleEvent.setStreamHandler(self)
-        
-        let eventSpeechRecognizeEvent = FlutterEventChannel(name: "eventSpeechRecognize", binaryMessenger: messenger)
-        eventSpeechRecognizeEvent.setStreamHandler(self)
 
         return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    }
+
+    // Listen for notifications while app is in foreground
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                               willPresent notification: UNNotification,
+                               withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        let content = notification.request.content
+        let title = content.title
+        let body = content.body
+        let userInfo = content.userInfo
+
+        // Send notification data to Flutter
+        sendNotificationToFlutter(title: title, body: body, userInfo: userInfo)
+
+        completionHandler([.banner, .sound])
+    }
+
+    // Listen for notifications when user interacts with them
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                               didReceive response: UNNotificationResponse,
+                               withCompletionHandler completionHandler: @escaping () -> Void) {
+        let content = response.notification.request.content
+        let title = content.title
+        let body = content.body
+        let userInfo = content.userInfo
+
+        // Send notification data to Flutter
+        sendNotificationToFlutter(title: title, body: body, userInfo: userInfo)
+
+        completionHandler()
+    }
+
+    // Helper to send notification data to Flutter
+    private func sendNotificationToFlutter(title: String, body: String, userInfo: [AnyHashable: Any]) {
+        let payload: [String: Any] = [
+            "title": title,
+            "body": body,
+            "userInfo": userInfo
+        ]
+        notificationChannel?.invokeMethod("onNotification", arguments: payload)
+    }
+
+    // Fetch upcoming calendar events (example: next 10 events)
+    func fetchUpcomingEvents(completion: @escaping ([EKEvent]) -> Void) {
+        let calendars = eventStore.calendars(for: .event)
+        let oneMonthAgo = Date()
+        let oneMonthAfter = Calendar.current.date(byAdding: .month, value: 1, to: oneMonthAgo)!
+        let predicate = eventStore.predicateForEvents(withStart: oneMonthAgo, end: oneMonthAfter, calendars: calendars)
+        let events = eventStore.events(matching: predicate)
+        completion(Array(events.prefix(10)))
     }
 }
 
