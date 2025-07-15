@@ -34,13 +34,13 @@ class BLEManager {
 
   /// Send notification to goggles using BLE protocol
   static void sendNotificationToGoggles(Map<String, dynamic> notification) {
-    // Use Proto.sendNotify to send notification as per protocol
-    // Use a unique notifyId (timestamp)
     final int notifyId = DateTime.now().millisecondsSinceEpoch & 0xFF;
+    print('[BLEManager] Sending notification to goggles: $notification, notifyId: $notifyId');
     Proto.sendNotify(notification, notifyId);
   }
 
   void sendData(String message) {
+    print('[BLEManager] Sending data over BLE: $message');
     // Your BLE sending implementation here
   }
 }

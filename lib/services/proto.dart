@@ -24,7 +24,7 @@ class Proto {
     var end = Utils.getTimestampMs();
     var startMic = (begin + ((end - begin) ~/ 2));
 
-    print("Proto---micOn---startMic---$startMic-------");
+    print("[Proto] micOn: startMic=$startMic, response=${receive.data}");
     return (startMic, (!receive.isTimeout && receive.data[1] == 0xc9));
   }
 
@@ -49,23 +49,22 @@ class Proto {
         max_page_num: max_page_num);
     _evenaiSeq++;
 
-    print(
-        '${DateTime.now()} proto--sendEvenAIData---text---$text---_evenaiSeq----$_evenaiSeq---newScreen---$newScreen---pos---$pos---current_page_num--$current_page_num---max_page_num--$max_page_num--dataList----$dataList---');
+    print('[Proto] sendEvenAIData: text length=${text.length}, packets=${dataList.length}, newScreen=$newScreen, pos=$pos, current_page_num=$current_page_num, max_page_num=$max_page_num');
 
     bool isSuccess = await BleManager.requestList(dataList,
         lr: "L", timeoutMs: timeoutMs ?? 2000);
 
-    print(
-        '${DateTime.now()} sendEvenAIData-----isSuccess-----$isSuccess-------');
+    print('[Proto] sendEvenAIData: L isSuccess=$isSuccess');
     if (!isSuccess) {
-      print("${DateTime.now()} sendEvenAIData failed  L ");
+      print("[Proto] sendEvenAIData failed  L ");
       return false;
     } else {
       isSuccess = await BleManager.requestList(dataList,
           lr: "R", timeoutMs: timeoutMs ?? 2000);
 
+      print('[Proto] sendEvenAIData: R isSuccess=$isSuccess');
       if (!isSuccess) {
-        print("${DateTime.now()} sendEvenAIData failed  R ");
+        print("[Proto] sendEvenAIData failed  R ");
         return false;
       }
       return true;
@@ -85,18 +84,18 @@ class Proto {
     ]);
     _beatHeartSeq++;
 
-    print('${DateTime.now()} sendHeartBeat--------data---$data--');
+    print('[Proto] sendHeartBeat: data=$data');
     var ret = await BleManager.request(data, lr: "L", timeoutMs: 1500);
 
-    print('${DateTime.now()} sendHeartBeat----L----ret---${ret.data}--');
+    print('[Proto] sendHeartBeat: L ret=${ret.data}');
     if (ret.isTimeout) {
-      print('${DateTime.now()} sendHeartBeat----L----time out--');
+      print('[Proto] sendHeartBeat: L time out');
       return false;
     } else if (ret.data[0].toInt() == 0x25 &&
         ret.data.length > 5 &&
         ret.data[4].toInt() == 0x04) {
       var retR = await BleManager.request(data, lr: "R", timeoutMs: 1500);
-      print('${DateTime.now()} sendHeartBeat----R----retR---${retR.data}--');
+      print('[Proto] sendHeartBeat: R retR=${retR.data}');
       if (retR.isTimeout) {
         return false;
       } else if (retR.data[0].toInt() == 0x25 &&
@@ -115,21 +114,22 @@ class Proto {
     var cmd = Uint8List.fromList([0x34]);
     var resp = await BleManager.request(cmd, lr: lr);
     var sn = String.fromCharCodes(resp.data.sublist(2, 18).toList());
+    print('[Proto] getLegSn: lr=$lr, sn=$sn');
     return sn;
   }
 
   // tell the glasses to exit function to dashboard
   static Future<bool> exit() async {
-    print("send exit all func");
+    print("[Proto] exit: send exit all func");
     var data = Uint8List.fromList([0x18]);
 
     var retL = await BleManager.request(data, lr: "L", timeoutMs: 1500);
-    print('${DateTime.now()} exit----L----ret---${retL.data}--');
+    print('[Proto] exit: L ret=${retL.data}');
     if (retL.isTimeout) {
       return false;
     } else if (retL.data.isNotEmpty && retL.data[1].toInt() == 0xc9) {
       var retR = await BleManager.request(data, lr: "R", timeoutMs: 1500);
-      print('${DateTime.now()} exit----R----retR---${retR.data}--');
+      print('[Proto] exit: R retR=${retR.data}');
       if (retR.isTimeout) {
         return false;
       } else if (retR.data.isNotEmpty && retR.data[1].toInt() == 0xc9) {
@@ -158,18 +158,18 @@ class Proto {
       }
       var itemData = data.sublist(start, end);
       var pack = Utils.addPrefixToUint8List([cmd, maxSeq, seq], itemData);
+      print('[Proto] _getPackList: cmd=$cmd, maxSeq=$maxSeq, seq=$seq, packLen=${pack.length}');
       send.add(pack);
     }
     return send;
   }
 
   static Future<void> sendNewAppWhiteListJson(String whitelistJson) async {
-    print("proto -> sendNewAppWhiteListJson: whitelist = $whitelistJson");
+    print("[Proto] sendNewAppWhiteListJson: whitelist = $whitelistJson");
     final whitelistData = utf8.encode(whitelistJson);
     //  2、转换为接口格式
     final dataList = _getPackList(0x04, whitelistData, count: 180);
-    print(
-        "proto -> sendNewAppWhiteListJson: length = ${dataList.length}, dataList = $dataList");
+    print("[Proto] sendNewAppWhiteListJson: length = ${dataList.length}, dataList = $dataList");
     for (var i = 0; i < 3; i++) {
       final isSuccess =
           await BleManager.requestList(dataList, timeoutMs: 300, lr: "L");
@@ -187,20 +187,20 @@ class Proto {
     final notifyJson = jsonEncode({
       "ncs_notification": appData,
     });
-    final dataList =
-        _getNotifyPackList(0x4B, notifyId, utf8.encode(notifyJson));
-    print(
-        "proto -> sendNotify: notifyId = $notifyId, data length = ${dataList.length} , data = $dataList, app = $notifyJson");
+    final dataList = getNotifyPackList(0x4B, notifyId, utf8.encode(notifyJson));
+    print('[Proto] sendNotify: notifyId=$notifyId, packets=${dataList.length}, app=$notifyJson');
     for (var i = 0; i < retry; i++) {
       final isSuccess =
           await BleManager.requestList(dataList, timeoutMs: 1000, lr: "L");
+      print('[Proto] sendNotify: try=${i+1}, isSuccess=$isSuccess');
       if (isSuccess) {
         return;
       }
     }
+    print('[Proto] sendNotify: failed after $retry retries');
   }
 
-  static List<Uint8List> _getNotifyPackList(
+  static List<Uint8List> getNotifyPackList(
       int cmd, int msgId, Uint8List data) {
     List<Uint8List> send = [];
     int maxSeq = data.length ~/ 176;
@@ -214,8 +214,8 @@ class Proto {
         end = data.length;
       }
       var itemData = data.sublist(start, end);
-      var pack =
-          Utils.addPrefixToUint8List([cmd, msgId, maxSeq, seq], itemData);
+      var pack = Utils.addPrefixToUint8List([cmd, msgId, maxSeq, seq], itemData);
+      print('[Proto] getNotifyPackList: cmd=$cmd, msgId=$msgId, maxSeq=$maxSeq, seq=$seq, packLen=${pack.length}');
       send.add(pack);
     }
     return send;
