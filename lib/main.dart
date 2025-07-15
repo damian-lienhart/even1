@@ -5,6 +5,7 @@ import 'package:demo_ai_even/views/home_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:flutter/services.dart';
+import 'package:demo_ai_even/services/ble.dart';
 
 
 void main() {
