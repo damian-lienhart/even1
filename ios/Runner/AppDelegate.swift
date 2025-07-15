@@ -11,7 +11,7 @@ import UserNotifications
 import EventKit
 
 @main
-@objc class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
+@objc class AppDelegate: FlutterAppDelegate {
     private var blueInstance = BluetoothManager.shared
     private let eventStore = EKEventStore()
     private var notificationChannel: FlutterMethodChannel?
@@ -51,7 +51,11 @@ import EventKit
         // Send notification data to Flutter
         sendNotificationToFlutter(title: title, body: body, userInfo: userInfo)
 
-        completionHandler([.banner, .sound])
+        if #available(iOS 14.0, *) {
+            completionHandler([.banner, .sound])
+        } else {
+            completionHandler([.alert, .sound])
+        }
     }
 
     // Listen for notifications when user interacts with them
