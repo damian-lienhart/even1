@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/services.dart';
+import 'proto.dart';
 
 class BleReceive {
   String lr = "";
@@ -31,9 +32,12 @@ class BLEManager {
 
   BLEManager._internal();
 
+  /// Send notification to goggles using BLE protocol
   static void sendNotificationToGoggles(Map<String, dynamic> notification) {
-    final String message = '${notification['title']}: ${notification['body']}';
-    instance.sendData(message);
+    // Use Proto.sendNotify to send notification as per protocol
+    // Use a unique notifyId (timestamp)
+    final int notifyId = DateTime.now().millisecondsSinceEpoch & 0xFF;
+    Proto.sendNotify(notification, notifyId);
   }
 
   void sendData(String message) {
